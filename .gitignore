@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Data files
+*.csv
+*.parquet
+*.json
+
+# Logs
+*.log
+
+# Docker
+.docker/
+
+# Checkpoints
+checkpoints/
+
