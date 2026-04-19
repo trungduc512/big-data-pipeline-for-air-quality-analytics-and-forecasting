@@ -35,6 +35,25 @@ services:
     networks:
       - bigdata-network
 
+  # AKHQ - Modern Kafka UI
+  akhq:
+    image: tchiotludo/akhq:latest
+    container_name: kafka_akhq
+    depends_on:
+      - kafka
+    ports:
+      - "8080:8080"
+    environment:
+      AKHQ_CONFIGURATION: |
+        akhq:
+          connections:
+            docker-kafka-server:
+              properties:
+                bootstrap.servers: "kafka:29092"
+    networks:
+      - bigdata-network
+    restart: unless-stopped
+
   # MinIO for S3-compatible storage
   minio:
     image: minio/minio:latest
