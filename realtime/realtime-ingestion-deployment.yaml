@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: realtime-collector
+  labels:
+    app: realtime-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: realtime-collector
+  template:
+    metadata:
+      labels:
+        app: realtime-collector
+    spec:
+      containers:
+        - name: realtime-collector
+          image: realtime_air_quality_data_ingestion:0.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - python
+            - collect_data_realtime.py
+            - --interval
+            - "300"
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: OPENAQ_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: openaq-api-keys
+                  key: OPENAQ_API_KEYS
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+      restartPolicy: Always

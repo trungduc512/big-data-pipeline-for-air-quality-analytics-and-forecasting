@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: akhq
+spec:
+  selector:
+    app: akhq
+  ports:
+    - name: "8080"
+      port: 8080
+      targetPort: 8080
