@@ -223,11 +223,12 @@ def fetch_measurements_for_sensor(sensor_id, days_back=None, date_from=None, dat
     return all_measurements
 
 
-def send_to_kafka(producer, data):
-    """Send data to Kafka topic."""
+def send_to_kafka(producer, data, key=None):
+    """Send data to Kafka topic, optionally partitioned by key."""
     try:
         message = json.dumps(data).encode('utf-8')
-        producer.send(KAFKA_TOPIC_RAW, value=message)
+        key_bytes = None if key is None else str(key).encode("utf-8")
+        producer.send(KAFKA_TOPIC_RAW, key=key_bytes, value=message)
     except KafkaError as e:
         print(f"Error sending to Kafka: {e}")
 
@@ -279,7 +280,7 @@ def process_station_data(station, producer, days_back=None, date_from=None, date
                 "ingestion_timestamp": datetime.now(timezone.utc).isoformat()
             }
 
-            send_to_kafka(producer, message)
+            send_to_kafka(producer, message, key=location_id)
             records_sent += 1
 
     return records_sent

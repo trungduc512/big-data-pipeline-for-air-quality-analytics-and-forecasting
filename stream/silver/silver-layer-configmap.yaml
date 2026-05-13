@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: silver-layer-configmap
+data:
+  KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
+  KAFKA_TOPIC: "openaq-raw-measurements"
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "air-quality-data"
