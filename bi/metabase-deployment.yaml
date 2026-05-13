@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metabase
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metabase
+  template:
+    metadata:
+      labels:
+        app: metabase
+    spec:
+      securityContext:
+        fsGroup: 2000
+      containers:
+        - name: metabase
+          image: metabase/metabase:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: MB_DB_FILE
+              value: /metabase-data/metabase.db
+            - name: MB_JETTY_PORT
+              value: "3000"
+            - name: MB_SITE_NAME
+              value: Air Quality BI
+            - name: MB_ANON_TRACKING_ENABLED
+              value: "false"
+            - name: JAVA_OPTS
+              value: -Xms512m -Xmx1024m
+          volumeMounts:
+            - name: metabase-storage
+              mountPath: /metabase-data
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 180
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              cpu: 1000m
+              memory: 2Gi
+      volumes:
+        - name: metabase-storage
+          persistentVolumeClaim:
+            claimName: metabase-pvc

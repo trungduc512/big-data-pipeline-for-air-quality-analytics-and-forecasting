@@ -105,6 +105,20 @@ def load_gold_to_clickhouse(client, fs):
                 )
                 df["values"] = df["values"].apply(lambda x: x if x is not None else [])
 
+            gold_columns = [
+                "datetime",
+                "location_id",
+                "location_name",
+                "country",
+                "latitude",
+                "longitude",
+                "aqi",
+                "aqi_category",
+                "parameters",
+                "values",
+            ]
+            df = df[gold_columns]
+
             client.insert_df("gold_hourly_aqi", df)
             total_records += len(df)
 
