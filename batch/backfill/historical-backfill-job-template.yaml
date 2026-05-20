@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: historical-backfill-yyyy-mm
+spec:
+  backoffLimit: 2
+  parallelism: 1
+  completions: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: historical-backfill
+          image: air-quality-backfill:0.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - python
+            - backfill_to_bronze.py
+          args:
+            - --date-from
+            - YYYY-MM-01
+            - --date-to
+            - YYYY-MM-last-day
+            - --workers
+            - '$(BACKFILL_WORKERS)'
+            - --fetch-mode
+            - range
+            - --request-chunk-days
+            - "$(BACKFILL_REQUEST_CHUNK_DAYS)"
+          env:
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-backfill-configmap
+                  key: MINIO_ENDPOINT
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-backfill-configmap
+                  key: MINIO_BUCKET
+            - name: MINIO_ACCESS_KEY
+              value: 'minioadmin'
+            - name: MINIO_SECRET_KEY
+              value: 'minioadmin123'
+            - name: BACKFILL_WORKERS
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-backfill-configmap
+                  key: BACKFILL_WORKERS
+            - name: BACKFILL_REQUEST_CHUNK_DAYS
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-backfill-configmap
+                  key: BACKFILL_REQUEST_CHUNK_DAYS
+            - name: OPENAQ_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: openaq-api-keys
+                  key: OPENAQ_API_KEYS

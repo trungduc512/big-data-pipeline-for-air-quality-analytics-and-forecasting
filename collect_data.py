@@ -261,7 +261,7 @@ def process_station_data(station, producer, days_back=None, date_from=None, date
 
             # Calculate AQI
             aqi = calculate_aqi_for_pollutant(value_standard, param_name)
-            aqi_category = get_aqi_category(aqi) if aqi else None
+            aqi_category = get_aqi_category(aqi) if aqi is not None else None
 
             # Prepare message
             message = {

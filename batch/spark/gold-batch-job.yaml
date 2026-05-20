@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: historical-gold-batch
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: gold-batch
+          image: air-quality-spark:0.1
+          imagePullPolicy: IfNotPresent
+          command:
+            - spark-submit
+          args:
+            - --properties-file
+            - spark.conf
+            - batch_processor.py
+            - --layer
+            - gold
+          env:
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: MINIO_ENDPOINT
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: MINIO_BUCKET
+            - name: MINIO_ACCESS_KEY
+              value: 'minioadmin'
+            - name: MINIO_SECRET_KEY
+              value: 'minioadmin123'
+            - name: SPARK_LOCAL_CORES
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: SPARK_LOCAL_CORES
+            - name: SPARK_DRIVER_MEMORY
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: SPARK_DRIVER_MEMORY
+            - name: SPARK_EXECUTOR_MEMORY
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: SPARK_EXECUTOR_MEMORY
+            - name: SPARK_SQL_SHUFFLE_PARTITIONS
+              valueFrom:
+                configMapKeyRef:
+                  name: historical-spark-configmap
+                  key: SPARK_SQL_SHUFFLE_PARTITIONS
+          resources:
+            requests:
+              cpu: '4'
+              memory: 4Gi
+            limits:
+              cpu: '4'
+              memory: 4500Mi

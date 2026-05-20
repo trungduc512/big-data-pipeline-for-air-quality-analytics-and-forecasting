@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: historical-spark-configmap
+data:
+  MINIO_ENDPOINT: "http://minio:9000"
+  MINIO_BUCKET: "historical-air-quality-data"
+  SPARK_LOCAL_CORES: "4"
+  SPARK_DRIVER_MEMORY: "3g"
+  SPARK_EXECUTOR_MEMORY: "3g"
+  SPARK_SQL_SHUFFLE_PARTITIONS: "8"

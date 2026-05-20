@@ -236,7 +236,7 @@ def process_station_data(station, producer, date_from, date_to):
             value_standard = convert_unit_to_standard(value, param_name, unit)
 
             aqi = calculate_aqi_for_pollutant(value_standard, param_name)
-            aqi_category = get_aqi_category(aqi) if aqi else None
+            aqi_category = get_aqi_category(aqi) if aqi is not None else None
 
             message = {
                 "datetime": m["datetime"],

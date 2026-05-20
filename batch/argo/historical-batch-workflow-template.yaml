@@ -1,0 +1,265 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: historical-batch-pipeline
+spec:
+  entrypoint: historical-pipeline
+  serviceAccountName: historical-workflow
+  parallelism: 1
+  arguments:
+    parameters:
+      - name: days
+        value: "2000"
+      - name: date-from
+        value: ""
+      - name: date-to
+        value: ""
+      - name: backfill-workers
+        value: "8"
+      - name: run-silver-gold
+        value: "true"
+      - name: request-chunk-days
+        value: "7"
+      - name: backfill-image
+        value: "air-quality-backfill:0.1"
+      - name: spark-image
+        value: "air-quality-spark:0.1"
+  templates:
+    - name: historical-pipeline
+      steps:
+        - - name: generate-months
+            template: generate-months
+            arguments:
+              parameters:
+                - name: days
+                  value: "{{workflow.parameters.days}}"
+                - name: date-from
+                  value: "{{workflow.parameters.date-from}}"
+                - name: date-to
+                  value: "{{workflow.parameters.date-to}}"
+        - - name: backfill-month
+            template: backfill-month
+            arguments:
+              parameters:
+                - name: date-from
+                  value: "{{item.date_from}}"
+                - name: date-to
+                  value: "{{item.date_to}}"
+                - name: job-name
+                  value: "{{item.name}}"
+                - name: workers
+                  value: "{{workflow.parameters.backfill-workers}}"
+                - name: request-chunk-days
+                  value: "{{workflow.parameters.request-chunk-days}}"
+                - name: backfill-image
+                  value: "{{workflow.parameters.backfill-image}}"
+            withParam: "{{steps.generate-months.outputs.result}}"
+        - - name: silver
+            template: spark-layer
+            when: "{{workflow.parameters.run-silver-gold}} == true"
+            arguments:
+              parameters:
+                - name: layer
+                  value: silver
+                - name: spark-image
+                  value: "{{workflow.parameters.spark-image}}"
+        - - name: gold
+            template: spark-layer
+            when: "{{workflow.parameters.run-silver-gold}} == true"
+            arguments:
+              parameters:
+                - name: layer
+                  value: gold
+                - name: spark-image
+                  value: "{{workflow.parameters.spark-image}}"
+
+    - name: generate-months
+      inputs:
+        parameters:
+          - name: days
+          - name: date-from
+          - name: date-to
+      script:
+        image: python:3.11-slim
+        command:
+          - python
+        source: |
+          import calendar
+          import json
+          from datetime import date, datetime, timedelta
+
+          def parse_date(value):
+              value = value.strip()
+              return datetime.strptime(value, "%Y-%m-%d").date() if value else None
+
+          date_from = parse_date("{{inputs.parameters.date-from}}")
+          date_to = parse_date("{{inputs.parameters.date-to}}")
+          days_value = "{{inputs.parameters.days}}".strip()
+
+          if days_value:
+              days = int(days_value)
+          elif date_from and date_to:
+              days = None
+          else:
+              days = 2000
+
+          if days is not None and days < 1:
+              raise SystemExit("days must be greater than zero")
+
+          if date_from and date_to:
+              start = date_from
+              end = date_to
+          elif date_from:
+              start = date_from
+              end = start + timedelta(days=days - 1)
+          elif date_to:
+              end = date_to
+              start = end - timedelta(days=days - 1)
+          else:
+              end = date.today()
+              start = end - timedelta(days=days - 1)
+
+          if start > end:
+              raise SystemExit("date-from must be on or before date-to")
+
+          months = []
+          cursor = date(start.year, start.month, 1)
+          while cursor <= end:
+              month_last_day = calendar.monthrange(cursor.year, cursor.month)[1]
+              month_start = max(start, cursor)
+              month_end = min(end, date(cursor.year, cursor.month, month_last_day))
+              months.append({
+                  "name": f"historical-backfill-{cursor.year:04d}-{cursor.month:02d}",
+                  "date_from": month_start.isoformat(),
+                  "date_to": month_end.isoformat(),
+              })
+              if cursor.month == 12:
+                  cursor = date(cursor.year + 1, 1, 1)
+              else:
+                  cursor = date(cursor.year, cursor.month + 1, 1)
+
+          print(json.dumps(months))
+
+    - name: backfill-month
+      activeDeadlineSeconds: 14400
+      retryStrategy:
+        limit: "2"
+        retryPolicy: Always
+        backoff:
+          duration: "1m"
+          factor: "2"
+          maxDuration: "10m"
+      inputs:
+        parameters:
+          - name: date-from
+          - name: date-to
+          - name: job-name
+          - name: workers
+          - name: request-chunk-days
+          - name: backfill-image
+      metadata:
+        labels:
+          historical-job: "{{inputs.parameters.job-name}}"
+      container:
+        image: "{{inputs.parameters.backfill-image}}"
+        imagePullPolicy: IfNotPresent
+        command:
+          - python
+          - backfill_to_bronze.py
+        args:
+          - --date-from
+          - "{{inputs.parameters.date-from}}"
+          - --date-to
+          - "{{inputs.parameters.date-to}}"
+          - --workers
+          - "{{inputs.parameters.workers}}"
+          - --fetch-mode
+          - range
+          - --request-chunk-days
+          - "{{inputs.parameters.request-chunk-days}}"
+        env:
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              configMapKeyRef:
+                name: historical-backfill-configmap
+                key: MINIO_ENDPOINT
+          - name: MINIO_BUCKET
+            valueFrom:
+              configMapKeyRef:
+                name: historical-backfill-configmap
+                key: MINIO_BUCKET
+          - name: MINIO_ACCESS_KEY
+            value: "minioadmin"
+          - name: MINIO_SECRET_KEY
+            value: "minioadmin123"
+          - name: OPENAQ_API_KEYS
+            valueFrom:
+              secretKeyRef:
+                name: openaq-api-keys
+                key: OPENAQ_API_KEYS
+    - name: spark-layer
+      activeDeadlineSeconds: 7200
+      retryStrategy:
+        limit: "1"
+        retryPolicy: Always
+        backoff:
+          duration: "1m"
+          factor: "2"
+          maxDuration: "5m"
+      inputs:
+        parameters:
+          - name: layer
+          - name: spark-image
+      container:
+        image: "{{inputs.parameters.spark-image}}"
+        imagePullPolicy: IfNotPresent
+        command:
+          - spark-submit
+        args:
+          - --properties-file
+          - spark.conf
+          - batch_processor.py
+          - --layer
+          - "{{inputs.parameters.layer}}"
+        env:
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: MINIO_ENDPOINT
+          - name: MINIO_BUCKET
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: MINIO_BUCKET
+          - name: MINIO_ACCESS_KEY
+            value: "minioadmin"
+          - name: MINIO_SECRET_KEY
+            value: "minioadmin123"
+          - name: SPARK_LOCAL_CORES
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_LOCAL_CORES
+          - name: SPARK_DRIVER_MEMORY
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_DRIVER_MEMORY
+          - name: SPARK_EXECUTOR_MEMORY
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_EXECUTOR_MEMORY
+          - name: SPARK_SQL_SHUFFLE_PARTITIONS
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_SQL_SHUFFLE_PARTITIONS
+        resources:
+          requests:
+            cpu: "4"
+            memory: 4Gi
+          limits:
+            cpu: "4"
+            memory: 4500Mi

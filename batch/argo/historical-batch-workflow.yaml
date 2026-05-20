@@ -1,0 +1,14 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: historical-batch-
+spec:
+  serviceAccountName: historical-workflow
+  workflowTemplateRef:
+    name: historical-batch-pipeline
+  arguments:
+    parameters:
+      - name: days
+        value: '2000'
+      - name: run-silver-gold
+        value: 'false'
