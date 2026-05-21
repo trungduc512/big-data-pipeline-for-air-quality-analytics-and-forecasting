@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giám sát Chất lượng Không khí - Đông Nam Á</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="title">
+                    <span class="icon">🌬️</span>
+                    Giám sát Chất lượng Không khí
+                </h1>
+                <p class="subtitle">Dữ liệu thời gian thực từ OpenAQ - Khu vực Đông Nam Á</p>
+            </div>
+        </header>
+
+        <!-- Country Selector -->
+        <div class="country-selector-section">
+            <label for="country-select" class="selector-label">Chọn quốc gia:</label>
+            <select id="country-select" class="country-select">
+                <option value="">-- Chọn quốc gia --</option>
+                {% for code, name in countries.items() %}
+                <option value="{{ code }}">{{ name }} ({{ code }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Station Selector (hidden initially) -->
+        <div id="station-selector-section" class="country-selector-section hidden">
+            <label for="station-select" class="selector-label">Chọn khu vực/trạm đo:</label>
+            <select id="station-select" class="country-select">
+                <option value="">-- Chọn trạm đo --</option>
+            </select>
+            <button id="refresh-btn" class="refresh-btn" title="Làm mới dữ liệu">
+                🔄
+            </button>
+        </div>
+
+        <!-- Loading Indicator -->
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Đang tải dữ liệu...</p>
+        </div>
+
+        <!-- Error Message -->
+        <div id="error" class="error-message hidden"></div>
+
+        <!-- Country Overview (hidden initially) -->
+        <div id="country-overview" class="content hidden">
+            <!-- Country Info + Overall AQI Card -->
+            <div class="card aqi-card">
+                <div class="card-header">
+                    <h2 id="country-name">Tổng quan Quốc gia</h2>
+                    <span id="country-code-badge" class="country-badge"></span>
+                </div>
+                <div class="aqi-display">
+                    <div class="aqi-value" id="country-aqi">-</div>
+                    <div class="aqi-category" id="country-category">-</div>
+                </div>
+                <div class="recommendation" id="country-recommendation">
+                    <span class="recommendation-icon" id="country-rec-icon">-</span>
+                    <p class="recommendation-text" id="country-rec-text">...</p>
+                </div>
+            </div>
+
+            <!-- Country Parameters Grid -->
+            <div class="parameters-grid" id="country-parameters-grid">
+                <!-- Dynamically populated -->
+            </div>
+
+            <!-- Stations List -->
+            <div class="card stations-card">
+                <div class="card-header">
+                    <h2>Danh sách trạm đo</h2>
+                    <span class="stations-count" id="stations-count">0 trạm</span>
+                </div>
+                <div class="stations-list" id="country-stations-list">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div id="content" class="content hidden">
+            <!-- Station Info Card -->
+            <div class="card station-info-card">
+                <div class="card-header">
+                    <h2 id="station-name">Thông tin Trạm đo</h2>
+                    <span id="station-location" class="country-badge"></span>
+                </div>
+                <div class="station-coordinates" id="station-coordinates">
+                    <!-- Coordinates will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Overall AQI Card -->
+            <div class="card aqi-card">
+                <div class="card-header">
+                    <h2>Chỉ số AQI</h2>
+                </div>
+                <div class="aqi-display">
+                    <div class="aqi-value" id="overall-aqi">-</div>
+                    <div class="aqi-category" id="overall-category">-</div>
+                </div>
+                <div class="recommendation" id="recommendation">
+                    <span class="recommendation-icon" id="recommendation-icon">-</span>
+                    <p class="recommendation-text" id="recommendation-text">Chọn quốc gia và trạm đo để xem khuyến nghị</p>
+                </div>
+            </div>
+
+            <!-- Prediction Card -->
+            <div class="card prediction-card hidden" id="prediction-card">
+                <div class="card-header">
+                    <h2>🔮 Dự đoán trong 1 giờ tiếp theo</h2>
+                </div>
+                <div class="prediction-content">
+                    <div class="prediction-aqi">
+                        <div class="prediction-label">AQI dự đoán:</div>
+                        <div class="prediction-value" id="prediction-aqi">-</div>
+                        <div class="prediction-category" id="prediction-category">-</div>
+                    </div>
+                    <div class="prediction-recommendation" id="prediction-recommendation">
+                        <span class="recommendation-icon" id="prediction-icon">-</span>
+                        <p class="recommendation-text" id="prediction-text">Đang tính toán...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parameters Grid -->
+            <div class="parameters-grid" id="parameters-grid">
+                <!-- Parameters will be dynamically inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
+
