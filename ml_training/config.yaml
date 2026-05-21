@@ -1,0 +1,72 @@
+# ML Training Configuration
+
+# Data Source
+data:
+  source: "minio"  # "minio" or "clickhouse"
+  minio_endpoint: "http://localhost:9000"
+  clickhouse:
+    host: "localhost"
+    port: 8123
+    username: "default"
+    password: "default123"
+
+# Data Loading
+data_loading:
+  start_date: "2020-11-28"
+  end_date: "2026-02-28"
+  countries: null  # null = all countries, or list: ["VN", "TH", "ID"]
+  sample_frac: null  # null = all data, or 0.1 = 10% sample
+
+# Data Split
+split:
+  train_ratio: 0.8
+  val_ratio: 0.1
+  test_ratio: 0.1
+  data_end: "2026-02-28"
+  # Chronological split. With start_date 2020-11-28:
+  # Train: 2020-11-28 to 2025-02-09
+  # Val:   2025-02-10 to 2025-08-19
+  # Test:  2025-08-20 to 2026-02-28
+
+# Model Configuration
+model:
+  type: "lightgbm"  # "lightgbm", "prophet", "lstm"
+  model_scope: "global"  # "global" or "country" (per-country models)
+  
+  # LightGBM Parameters
+  lightgbm:
+    objective: "regression"
+    metric: "rmse"
+    boosting_type: "gbdt"
+    num_leaves: 31
+    learning_rate: 0.05
+    feature_fraction: 0.8
+    bagging_fraction: 0.8
+    bagging_freq: 5
+    min_child_samples: 20
+    num_iterations: 1000
+    early_stopping_rounds: 50
+
+# Features
+features:
+  time_features: true
+  lag_features: true
+  lag_hours: [1, 24, 168]  # 1h, 24h, 1 week
+  rolling_stats: true
+  rolling_windows: [168, 720]  # 7 days, 30 days
+  spatial_features: true
+  pollutant_features: false  # Extract from arrays (future enhancement)
+
+# Training
+training:
+  output_dir: "models"
+  results_dir: "results"
+  save_model: true
+  save_predictions: true
+
+# Evaluation
+evaluation:
+  metrics: ["rmse", "mae", "mape", "r2"]
+  plot_predictions: true
+  plot_residuals: true
+  plot_feature_importance: true
