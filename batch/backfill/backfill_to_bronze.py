@@ -523,21 +523,54 @@ def delete_partition(client: Minio, bucket: str, prefix: str) -> int:
     return len(objects)
 
 
+def bronze_parquet_schema():
+    import pyarrow as pa
+
+    return pa.schema(
+        [
+            pa.field("datetime", pa.timestamp("us")),
+            pa.field("location_id", pa.int64()),
+            pa.field("location_name", pa.string()),
+            pa.field("country", pa.string()),
+            pa.field("latitude", pa.float64()),
+            pa.field("longitude", pa.float64()),
+            pa.field("parameter", pa.string()),
+            pa.field("value", pa.float64()),
+            pa.field("value_standard", pa.float64()),
+            pa.field("unit", pa.string()),
+            pa.field("aqi", pa.float64()),
+            pa.field("aqi_category", pa.string()),
+            pa.field("ingestion_timestamp", pa.timestamp("us")),
+        ]
+    )
+
+
 def rows_to_parquet_bytes(rows: list[dict]) -> bytes:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    schema = bronze_parquet_schema()
     df = pd.DataFrame(rows)
+    df = df.reindex(columns=schema.names)
     df["datetime"] = pd.to_datetime(df["datetime"], utc=True).dt.tz_convert(None)
     df["ingestion_timestamp"] = pd.to_datetime(
         df["ingestion_timestamp"], utc=True
     ).dt.tz_convert(None)
     df["location_id"] = pd.to_numeric(df["location_id"], errors="coerce").astype("Int64")
-    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
-    df["value"] = pd.to_numeric(df["value"], errors="coerce")
-    df["value_standard"] = pd.to_numeric(df["value_standard"], errors="coerce")
-    df["aqi"] = pd.to_numeric(df["aqi"], errors="coerce")
+    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce").astype("float64")
+    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce").astype("float64")
+    df["value"] = pd.to_numeric(df["value"], errors="coerce").astype("float64")
+    df["value_standard"] = pd.to_numeric(df["value_standard"], errors="coerce").astype("float64")
+    df["aqi"] = pd.to_numeric(df["aqi"], errors="coerce").astype("float64")
 
+    table = pa.Table.from_pandas(df, schema=schema, preserve_index=False, safe=False)
     buffer = io.BytesIO()
-    df.to_parquet(buffer, index=False, engine="pyarrow")
+    pq.write_table(
+        table,
+        buffer,
+        coerce_timestamps="us",
+        allow_truncated_timestamps=True,
+    )
     return buffer.getvalue()
 
 

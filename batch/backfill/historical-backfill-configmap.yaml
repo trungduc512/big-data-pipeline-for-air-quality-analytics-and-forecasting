@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: historical-backfill-configmap
 data:
-  MINIO_ENDPOINT: "http://minio:9000"
-  MINIO_BUCKET: "historical-air-quality-data"
-  BACKFILL_WORKERS: "8"
-  BACKFILL_REQUEST_CHUNK_DAYS: "7"
+  MINIO_ENDPOINT: 'http://minio:9000'
+  MINIO_BUCKET: 'historical-air-quality-data'
+  BACKFILL_WORKERS: '8'
+  BACKFILL_REQUEST_CHUNK_DAYS: '16'

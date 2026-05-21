@@ -11,6 +11,10 @@ spec:
         - name: gold-batch
           image: air-quality-spark:0.1
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 185
+            runAsGroup: 185
+            allowPrivilegeEscalation: false
           command:
             - spark-submit
           args:
@@ -20,6 +24,22 @@ spec:
             - --layer
             - gold
           env:
+            - name: HADOOP_USER_NAME
+              value: 'spark'
+            - name: SPARK_USER
+              value: 'spark'
+            - name: USER
+              value: 'spark'
+            - name: LOGNAME
+              value: 'spark'
+            - name: HOME
+              value: /home/spark
+            - name: JAVA_TOOL_OPTIONS
+              value: '-Duser.name=spark'
+            - name: SPARK_SUBMIT_OPTS
+              value: '-Duser.name=spark'
+            - name: HADOOP_OPTS
+              value: '-Duser.name=spark'
             - name: MINIO_ENDPOINT
               valueFrom:
                 configMapKeyRef:

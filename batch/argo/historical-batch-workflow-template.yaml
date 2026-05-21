@@ -178,6 +178,20 @@ spec:
           - --request-chunk-days
           - "{{inputs.parameters.request-chunk-days}}"
         env:
+          - name: HADOOP_USER_NAME
+            value: "spark"
+          - name: SPARK_USER
+            value: "spark"
+          - name: USER
+            value: "spark"
+          - name: LOGNAME
+            value: "spark"
+          - name: JAVA_TOOL_OPTIONS
+            value: "-Duser.name=spark"
+          - name: SPARK_SUBMIT_OPTS
+            value: "-Duser.name=spark"
+          - name: HADOOP_OPTS
+            value: "-Duser.name=spark"
           - name: MINIO_ENDPOINT
             valueFrom:
               configMapKeyRef:
@@ -213,6 +227,10 @@ spec:
       container:
         image: "{{inputs.parameters.spark-image}}"
         imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 185
+          runAsGroup: 185
+          allowPrivilegeEscalation: false
         command:
           - spark-submit
         args:
@@ -222,6 +240,22 @@ spec:
           - --layer
           - "{{inputs.parameters.layer}}"
         env:
+          - name: HADOOP_USER_NAME
+            value: "spark"
+          - name: SPARK_USER
+            value: "spark"
+          - name: USER
+            value: "spark"
+          - name: LOGNAME
+            value: "spark"
+          - name: HOME
+            value: "/home/spark"
+          - name: JAVA_TOOL_OPTIONS
+            value: "-Duser.name=spark"
+          - name: SPARK_SUBMIT_OPTS
+            value: "-Duser.name=spark"
+          - name: HADOOP_OPTS
+            value: "-Duser.name=spark"
           - name: MINIO_ENDPOINT
             valueFrom:
               configMapKeyRef:

@@ -1,0 +1,118 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: historical-silver-gold-pipeline
+spec:
+  entrypoint: silver-gold-pipeline
+  serviceAccountName: historical-workflow
+  parallelism: 1
+  arguments:
+    parameters:
+      - name: spark-image
+        value: "air-quality-spark:0.1"
+  templates:
+    - name: silver-gold-pipeline
+      steps:
+        - - name: silver
+            template: spark-layer
+            arguments:
+              parameters:
+                - name: layer
+                  value: silver
+                - name: spark-image
+                  value: "{{workflow.parameters.spark-image}}"
+        - - name: gold
+            template: spark-layer
+            arguments:
+              parameters:
+                - name: layer
+                  value: gold
+                - name: spark-image
+                  value: "{{workflow.parameters.spark-image}}"
+
+    - name: spark-layer
+      activeDeadlineSeconds: 7200
+      retryStrategy:
+        limit: "1"
+        retryPolicy: Always
+        backoff:
+          duration: "1m"
+          factor: "2"
+          maxDuration: "5m"
+      inputs:
+        parameters:
+          - name: layer
+          - name: spark-image
+      container:
+        image: "{{inputs.parameters.spark-image}}"
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          runAsUser: 185
+          runAsGroup: 185
+          allowPrivilegeEscalation: false
+        command:
+          - spark-submit
+        args:
+          - --properties-file
+          - spark.conf
+          - batch_processor.py
+          - --layer
+          - "{{inputs.parameters.layer}}"
+        env:
+          - name: HADOOP_USER_NAME
+            value: "spark"
+          - name: SPARK_USER
+            value: "spark"
+          - name: USER
+            value: "spark"
+          - name: LOGNAME
+            value: "spark"
+          - name: HOME
+            value: "/home/spark"
+          - name: JAVA_TOOL_OPTIONS
+            value: "-Duser.name=spark"
+          - name: SPARK_SUBMIT_OPTS
+            value: "-Duser.name=spark"
+          - name: HADOOP_OPTS
+            value: "-Duser.name=spark"
+          - name: MINIO_ENDPOINT
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: MINIO_ENDPOINT
+          - name: MINIO_BUCKET
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: MINIO_BUCKET
+          - name: MINIO_ACCESS_KEY
+            value: "minioadmin"
+          - name: MINIO_SECRET_KEY
+            value: "minioadmin123"
+          - name: SPARK_LOCAL_CORES
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_LOCAL_CORES
+          - name: SPARK_DRIVER_MEMORY
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_DRIVER_MEMORY
+          - name: SPARK_EXECUTOR_MEMORY
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_EXECUTOR_MEMORY
+          - name: SPARK_SQL_SHUFFLE_PARTITIONS
+            valueFrom:
+              configMapKeyRef:
+                name: historical-spark-configmap
+                key: SPARK_SQL_SHUFFLE_PARTITIONS
+        resources:
+          requests:
+            cpu: "4"
+            memory: 4Gi
+          limits:
+            cpu: "4"
+            memory: 4500Mi

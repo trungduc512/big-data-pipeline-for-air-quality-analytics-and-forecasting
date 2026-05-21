@@ -5,6 +5,9 @@ Pipeline: Bronze → Silver → Gold (sequential, not parallel)
 
 import os
 import sys
+from io import BytesIO
+from urllib.parse import urlparse
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col, isnan, max as spark_max, collect_list,
@@ -19,6 +22,9 @@ MINIO_BUCKET = os.environ.get("MINIO_BUCKET", "historical-air-quality-data")
 
 # MinIO S3 path
 S3_PATH = f"s3a://{MINIO_BUCKET}"
+BRONZE_REPAIR_SCHEMA = os.environ.get(
+    "BRONZE_REPAIR_SCHEMA", "true"
+).lower() in {"1", "true", "yes", "on"}
 
 
 def get_int_env(name: str, default: int) -> int:
@@ -73,9 +79,132 @@ def create_spark_session():
     return spark
 
 
+def create_minio_client():
+    """Create a MinIO client for pre-Spark object repairs."""
+    parsed = urlparse(MINIO_ENDPOINT)
+    if parsed.scheme:
+        endpoint = parsed.netloc
+        secure = parsed.scheme == "https"
+    else:
+        endpoint = MINIO_ENDPOINT
+        secure = False
+
+    from minio import Minio
+
+    return Minio(
+        endpoint,
+        access_key=MINIO_ACCESS_KEY,
+        secret_key=MINIO_SECRET_KEY,
+        secure=secure,
+    )
+
+
+def bronze_target_type(field_name: str):
+    import pyarrow as pa
+
+    target_types = {
+        "datetime": pa.timestamp("us"),
+        "ingestion_timestamp": pa.timestamp("us"),
+        "location_id": pa.int64(),
+        "location_name": pa.string(),
+        "country": pa.string(),
+        "latitude": pa.float64(),
+        "longitude": pa.float64(),
+        "parameter": pa.string(),
+        "value": pa.float64(),
+        "value_standard": pa.float64(),
+        "unit": pa.string(),
+        "aqi": pa.float64(),
+        "aqi_category": pa.string(),
+    }
+    return target_types.get(field_name)
+
+
+def normalize_bronze_table(table):
+    """Normalize Bronze Parquet physical types so Spark can read all files together."""
+    import pyarrow as pa
+
+    fields = []
+    changed = False
+    for field in table.schema:
+        target_type = bronze_target_type(field.name)
+        if target_type is not None and field.type != target_type:
+            fields.append(
+                pa.field(
+                    field.name,
+                    target_type,
+                    nullable=field.nullable,
+                    metadata=field.metadata,
+                )
+            )
+            changed = True
+        else:
+            fields.append(field)
+
+    if not changed:
+        return table, False
+
+    return table.cast(pa.schema(fields, metadata=table.schema.metadata), safe=False), True
+
+
+def repair_bronze_schema() -> None:
+    """Rewrite existing Bronze Parquet files with Spark-compatible physical types."""
+    if not BRONZE_REPAIR_SCHEMA:
+        print("[Repair] Bronze schema repair disabled")
+        return
+
+    print("[Repair] Scanning Bronze Parquet files for Spark-incompatible schemas...")
+    import pyarrow.parquet as pq
+
+    client = create_minio_client()
+    objects = client.list_objects(MINIO_BUCKET, prefix="bronze/", recursive=True)
+    scanned = 0
+    repaired = 0
+
+    for obj in objects:
+        object_name = obj.object_name
+        if not object_name.endswith(".parquet"):
+            continue
+
+        scanned += 1
+        response = client.get_object(MINIO_BUCKET, object_name)
+        try:
+            data = response.read()
+        finally:
+            response.close()
+            response.release_conn()
+
+        table = pq.read_table(BytesIO(data))
+        table, changed = normalize_bronze_table(table)
+        if not changed:
+            continue
+
+        output = BytesIO()
+        pq.write_table(
+            table,
+            output,
+            coerce_timestamps="us",
+            allow_truncated_timestamps=True,
+        )
+        output.seek(0)
+        client.put_object(
+            MINIO_BUCKET,
+            object_name,
+            output,
+            length=output.getbuffer().nbytes,
+            content_type="application/octet-stream",
+        )
+        repaired += 1
+        if repaired % 25 == 0:
+            print(f"[Repair] Rewritten {repaired} Bronze Parquet files so far...")
+
+    print(f"[Repair] Completed: scanned={scanned}, rewritten={repaired}")
+
+
 def process_bronze_to_silver(spark):
     """Job 1: Read from Bronze → Write to Silver (Cleaned Data)"""
     print("[Job 1] Processing Bronze → Silver...")
+    repair_bronze_schema()
     
     # Read from Bronze
     bronze_path = f"{S3_PATH}/bronze"
@@ -83,15 +212,15 @@ def process_bronze_to_silver(spark):
     
     # Clean and standardize
     silver_df = bronze_df.select(
-        col("datetime"),
-        col("location_id"),
+        col("datetime").cast("timestamp").alias("datetime"),
+        col("location_id").cast("long").alias("location_id"),
         col("location_name"),
         col("country"),
-        col("latitude"),
-        col("longitude"),
+        col("latitude").cast("double").alias("latitude"),
+        col("longitude").cast("double").alias("longitude"),
         col("parameter"),
-        col("value_standard").alias("value"),  # Use value_standard only
-        col("aqi"),
+        col("value_standard").cast("double").alias("value"),  # Use value_standard only
+        col("aqi").cast("double").alias("aqi"),
         col("aqi_category"),
         col("year"),
         col("month"),

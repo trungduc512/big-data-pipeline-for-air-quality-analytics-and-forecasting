@@ -40,6 +40,23 @@ The backfill image defaults to `--fetch-mode range --request-chunk-days 7`, whic
 kubectl apply -f batch/argo/historical-batch-workflow-template.yaml
 ```
 
+## Run Silver and Gold Only
+
+Use this after Bronze data already exists and you only want to rebuild the historical Silver and Gold datasets:
+
+```bash
+kubectl apply -f batch/argo/historical-silver-gold-workflow-template.yaml
+argo submit --from workflowtemplate/historical-silver-gold-pipeline --watch
+```
+
+Without the Argo CLI:
+
+```bash
+kubectl create -f batch/argo/historical-silver-gold-workflow.yaml
+```
+
+This workflow does not run Bronze ingestion. It runs Silver first, then Gold.
+
 ## Run 2000 Days
 
 ```bash

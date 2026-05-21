@@ -1,0 +1,12 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: historical-silver-gold-
+spec:
+  serviceAccountName: historical-workflow
+  workflowTemplateRef:
+    name: historical-silver-gold-pipeline
+  arguments:
+    parameters:
+      - name: spark-image
+        value: "air-quality-spark:0.1"
