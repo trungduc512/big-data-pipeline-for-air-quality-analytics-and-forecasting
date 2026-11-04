@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gold-stream-processor
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gold-stream-processor
+  template:
+    metadata:
+      labels:
+        app: gold-stream-processor
+    spec:
+      containers:
+        - name: gold-stream-processor
+          image: gold-layer:0.1
+          imagePullPolicy: IfNotPresent
+
+          env:
+            - name: KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: gold-layer-configmap
+                  key: KAFKA_BOOTSTRAP_SERVERS
+
+            - name: KAFKA_TOPIC
+              valueFrom:
+                configMapKeyRef:
+                  name: gold-layer-configmap
+                  key: KAFKA_TOPIC
+
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: gold-layer-configmap
+                  key: MINIO_ENDPOINT
+
+            - name: MINIO_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: gold-layer-configmap
+                  key: MINIO_BUCKET
+
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gold-layer-secrets
+                  key: MINIO_ACCESS_KEY
+
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: gold-layer-secrets
+                  key: MINIO_SECRET_KEY
